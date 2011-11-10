@@ -33,3 +33,6 @@ Append the following to your Chef client configs ('/etc/chef/client.rb')
 * License
 
   Chef-IRC-Snitch is released under the [[https://github.com/portertech/chef-irc-snitch/blob/master/MIT-LICENSE.txt][MIT license]].
+
+
+
