@@ -7,6 +7,7 @@ require 'rest-client'
 require 'carrier-pigeon'
 require 'pastie-api'
 
+
 class IRCSnitch < Chef::Handler
 
   def initialize(irc_uri, github_token, irc_channel_password, type, ssl = false)
