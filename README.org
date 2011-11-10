@@ -22,6 +22,10 @@ Append the following to your Chef client configs ('/etc/chef/client.rb')
 : enable_ssl = true
 : # The irc channel password is optional, you can leave it empty if you do not have a channel password
 : irc_channel_password = "some password"
+: # Select either pastie.org or github gist as the destination of the debug messages
+: type = "gist"
+: OR
+: type = "pastie"
 : 
 : irc_handler = IRCSnitch.new(irc_uri, github_token, enable_ssl)
 : exception_handlers << irc_handler

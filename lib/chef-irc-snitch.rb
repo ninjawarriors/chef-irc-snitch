@@ -5,14 +5,16 @@ require 'uri'
 require 'json'
 require 'rest-client'
 require 'carrier-pigeon'
+require 'pastie-api'
 
 class IRCSnitch < Chef::Handler
 
-  def initialize(irc_uri, github_token, irc_channel_password, ssl = false)
+  def initialize(irc_uri, github_token, irc_channel_password, type, ssl = false)
     @irc_uri = irc_uri
     @github_token = github_token
     @ssl = ssl
-    @irc_channel_password = irc_channel_password
+    @channel_password = irc_channel_password
+    @type = type
     @timestamp = Time.now.getutc
   end
 
@@ -37,23 +39,37 @@ class IRCSnitch < Chef::Handler
         "public" => false,
         "description" => "Chef run failed on #{node.name} @ #{@timestamp}"
       }
-      begin
-        timeout(10) do
-          res = RestClient.post("https://api.github.com/gists", JSON.generate(payload), {:accept => :json, :authorization => "token #{@github_token}"})
-          gist_url = JSON.parse(res)["html_url"]
-          Chef::Log.info("Created a GitHub Gist @ https://gist.github.com/#{gist_url}")
+
+      if @type == "gist"
+        begin
+          timeout(10) do
+            res = RestClient.post("https://api.github.com/gists", JSON.generate(payload), {:accept => :json, :authorization => "token #{@github_token}"})
+            gist_url = JSON.parse(res)["html_url"]
+            Chef::Log.info("Created a GitHub Gist @ #{gist_url}")
+            ip_address = (node.has_key? :ec2) ? node.ec2.public_ipv4 : node.ipaddress
+            message = "Chef run failed on #{node.name} : #{ip_address} : #{node.roles.join(", ")} : #{gist_url}"
+          end
+        rescue Timeout::Error
+          Chef::Log.error("Timed out while attempting to create a GitHub Gist")
         end
-      rescue Timeout::Error
-        Chef::Log.error("Timed out while attempting to create a GitHub Gist")
+      elsif @type == "pastie"
+        begin
+          timeout(10) do
+            p = Pastie.create(message)
+            Chef::Log.info("Created a Pastie @ URL: #{p.link}")
+            ip_address = (node.has_key? :ec2) ? node.ec2.public_ipv4 : node.ipaddress
+            message = "Chef run failed on #{node.name} : #{ip_address} : #{node.roles.join(", ")} : URL: #{p.link}"
+          end
+        rescue Timeout::Error
+          Chef::Log.error("Timed out while attempting to create a new pastie")
+        end
       end
 
-      ip_address = (node.has_key? :ec2) ? node.ec2.public_ipv4 : node.ipaddress
-      message = "Chef run failed on #{node.name} : #{ip_address} : #{node.roles.join(", ")} : #{gist_url}"
       Chef::Log.info("Sending via IRC: '#{message}'")
 
       begin
         timeout(10) do
-          CarrierPigeon.send(:uri => @irc_uri, :pw => @irc_channel_password, :message => message, :join => true, :ssl => @ssl)
+          CarrierPigeon.send(:uri => @irc_uri, :channel_password => @channel_password, :message => message, :join => true, :ssl => @ssl)
           Chef::Log.info("Informed chefs via IRC '#{message}'")
         end
       rescue Timeout::Error
